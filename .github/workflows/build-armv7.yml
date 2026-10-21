@@ -1,0 +1,56 @@
+name: Build ARMv7 Android binary
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-armv7.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.2.12479018"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-linux-androideabi
+
+      - name: Build for Android ARMv7
+        shell: bash
+        run: |
+          set -euxo pipefail
+          NDK="$ANDROID_HOME/ndk/27.2.12479018"
+          export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang"
+          cargo build --release --locked --target armv7-linux-androideabi
+          "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" target/armv7-linux-androideabi/release/wgslirpy
+          mkdir -p dist
+          cp target/armv7-linux-androideabi/release/wgslirpy dist/wgslirpy-android-armv7
+
+      - name: Check binary architecture
+        run: |
+          file dist/wgslirpy-android-armv7
+          test -s dist/wgslirpy-android-armv7
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: wgslirpy-android-armv7
+          path: dist/wgslirpy-android-armv7
+          if-no-files-found: error
